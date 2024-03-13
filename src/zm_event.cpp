@@ -108,15 +108,16 @@ Event::Event(
   // Copy it in case opening the mp4 doesn't work we can set it to another value
   save_jpegs = monitor->GetOptSaveJPEGs();
   Storage *storage = monitor->getStorage();
-
+  long long start_milliseconds = (long long)(start_time.tv_sec) * 1000 + (long long)(start_time.tv_usec) / 1000;
   std::string sql = stringtf(
       "INSERT INTO `Events` "
       "( `MonitorId`, `StorageId`, `Name`, `StartDateTime`, `Width`, `Height`, `Cause`, `Notes`, `StateId`, `Orientation`, `Videoed`, `DefaultVideo`, `SaveJPEGs`, `Scheme` )"
       " VALUES "
-      "( %d, %d, 'New Event', from_unixtime( %ld ), %d, %d, '%s', '%s', %d, %d, %d, '%s', %d, '%s' )",
+      "( %d, %d, 'New Event', FROM_UNIXTIME(%lld * POWER(10, 9 - FLOOR(LOG10(%lld)))), %d, %d, '%s', '%s', %d, %d, %d, '%s', %d, '%s' )",
       monitor->Id(), 
       storage->Id(),
-      start_time.tv_sec,
+      start_milliseconds,
+      start_milliseconds,
       monitor->Width(),
       monitor->Height(),
       cause.c_str(),
@@ -163,9 +164,10 @@ Event::~Event() {
 
   // Should not be static because we might be multi-threaded
   char sql[ZM_SQL_LGE_BUFSIZ];
+  long long end_milliseconds = (long long)(end_time.tv_sec) * 1000 + (long long)(end_time.tv_usec) / 1000;
   snprintf(sql, sizeof(sql),
-      "UPDATE Events SET Name='%s%" PRIu64 "', EndDateTime = from_unixtime(%ld), Length = %s%ld.%02ld, Frames = %d, AlarmFrames = %d, TotScore = %d, AvgScore = %d, MaxScore = %d WHERE Id = %" PRIu64 " AND Name='New Event'",
-      monitor->EventPrefix(), id, end_time.tv_sec,
+      "UPDATE Events SET Name='%s%" PRIu64 "', EndDateTime = FROM_UNIXTIME(%lld * POWER(10, 9 - FLOOR(LOG10(%lld)))), Length = %s%ld.%02ld, Frames = %d, AlarmFrames = %d, TotScore = %d, AvgScore = %d, MaxScore = %d WHERE Id = %" PRIu64 " AND Name='New Event'",
+      monitor->EventPrefix(), id, end_milliseconds, end_milliseconds,
       delta_time.positive?"":"-", delta_time.sec, delta_time.fsec,
       frames, alarm_frames,
       tot_score, (int)(alarm_frames?(tot_score/alarm_frames):0), max_score,
@@ -173,8 +175,9 @@ Event::~Event() {
   if (!zmDbDoUpdate(sql)) {
     // Name might have been changed during recording, so just do the update without changing the name.
     snprintf(sql, sizeof(sql),
-        "UPDATE Events SET EndDateTime = from_unixtime(%ld), Length = %s%ld.%02ld, Frames = %d, AlarmFrames = %d, TotScore = %d, AvgScore = %d, MaxScore = %d WHERE Id = %" PRIu64,
-        end_time.tv_sec,
+        "UPDATE Events SET EndDateTime = FROM_UNIXTIME(%lld * POWER(10, 9 - FLOOR(LOG10(%lld)))), Length = %s%ld.%02ld, Frames = %d, AlarmFrames = %d, TotScore = %d, AvgScore = %d, MaxScore = %d WHERE Id = %" PRIu64,
+        end_milliseconds,
+	end_milliseconds,
         delta_time.positive?"":"-", delta_time.sec, delta_time.fsec,
         frames, alarm_frames,
         tot_score, (int)(alarm_frames?(tot_score/alarm_frames):0), max_score,
